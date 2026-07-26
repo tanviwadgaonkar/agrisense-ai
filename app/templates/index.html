@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgriSense · Soil analysis &amp; crop recommendation</title>
+<style>
+  :root{
+    --soil:#2b2118; --field:#3a7d44; --field-dark:#2e5f36;
+    --paper:#f6f3ec; --card:#fffdf8; --line:#e3ddd0; --ink:#2b2118;
+    --amber:#b8860b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+       font:16px/1.55 "Segoe UI",system-ui,-apple-system,sans-serif}
+  header{background:var(--soil);color:var(--paper);padding:28px 20px}
+  .wrap{max-width:960px;margin:0 auto;padding:0 4px}
+  h1{margin:0;font-family:Georgia,"Times New Roman",serif;font-weight:600;
+     font-size:1.9rem;letter-spacing:.3px}
+  h1 span{color:#8fc99a}
+  header p{margin:6px 0 0;opacity:.75;font-size:.95rem}
+  main{max-width:960px;margin:28px auto 60px;padding:0 20px;
+       display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  @media(max-width:760px){main{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;
+        padding:22px}
+  h2{margin:0 0 14px;font-size:1.05rem;text-transform:uppercase;
+     letter-spacing:.08em;color:var(--field-dark)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+  label{display:block;font-size:.8rem;margin-bottom:3px;color:#5a5045}
+  label small{color:#9a8f80}
+  input{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:7px;
+        background:#fff;font-size:.95rem}
+  input:focus{outline:2px solid var(--field);border-color:var(--field)}
+  button{margin-top:16px;width:100%;padding:12px;border:0;border-radius:8px;
+         background:var(--field);color:#fff;font-size:1rem;font-weight:600;
+         cursor:pointer}
+  button:hover{background:var(--field-dark)}
+  .error{background:#fbeaea;border:1px solid #e6b8b8;color:#8a2f2f;
+         padding:10px 12px;border-radius:8px;margin-bottom:14px;font-size:.9rem}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+  .chip{font-size:.78rem;padding:4px 10px;border-radius:999px;
+        background:#eef4ee;border:1px solid #cfe0cf;color:var(--field-dark)}
+  .chip.warn{background:#fdf6e3;border-color:#ead9a8;color:var(--amber)}
+  .issues{margin:0 0 18px;padding-left:18px;font-size:.88rem;color:#6b5d2a}
+  .rec{margin-bottom:12px}
+  .rec .name{display:flex;justify-content:space-between;font-size:.92rem;
+             margin-bottom:4px}
+  .rec .name b{text-transform:capitalize}
+  .bar{height:9px;background:#ece7db;border-radius:999px;overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--field)}
+  .rec:first-child .bar i{background:var(--field-dark)}
+  .placeholder{color:#9a8f80;font-size:.92rem}
+  footer{max-width:960px;margin:0 auto;padding:0 20px 40px;color:#9a8f80;
+         font-size:.8rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Agri<span>Sense</span></h1>
+    <p>Soil condition analysis &amp; ML crop recommendation</p>
+  </div>
+</header>
+
+<main>
+  <form class="card" method="post" autocomplete="off">
+    <h2>Soil &amp; field readings</h2>
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+    <div class="grid">
+      {% for key, (name, unit, default) in fields.items() %}
+      <div>
+        <label for="{{ key }}">{{ name }} {% if unit %}<small>({{ unit }})</small>{% endif %}</label>
+        <input id="{{ key }}" name="{{ key }}" type="number" step="any" required
+               value="{{ values[key] }}">
+      </div>
+      {% endfor %}
+    </div>
+    <button type="submit">Analyze soil</button>
+  </form>
+
+  <section class="card">
+    <h2>Analysis</h2>
+    {% if result %}
+      <div class="chips">
+        <span class="chip {{ 'warn' if result.soil.overall != 'good' }}">
+          soil: {{ result.soil.overall }}</span>
+        <span class="chip">pH: {{ result.soil.ph_class }}</span>
+        <span class="chip {{ 'warn' if result.soil.nitrogen == 'low' }}">N: {{ result.soil.nitrogen }}</span>
+        <span class="chip {{ 'warn' if result.soil.phosphorus == 'low' }}">P: {{ result.soil.phosphorus }}</span>
+        <span class="chip {{ 'warn' if result.soil.potassium == 'low' }}">K: {{ result.soil.potassium }}</span>
+        <span class="chip">moisture: {{ result.soil.moisture_state }}</span>
+      </div>
+      {% if result.soil.issues %}
+      <ul class="issues">
+        {% for issue in result.soil.issues %}<li>{{ issue }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      {% for rec in result.recommendations %}
+      <div class="rec">
+        <div class="name"><b>{{ rec.crop }}</b><span>{{ '%.1f'|format(rec.probability * 100) }}%</span></div>
+        <div class="bar"><i style="width:{{ rec.probability * 100 }}%"></i></div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="placeholder">Enter your soil test values and press
+      <b>Analyze soil</b>. You'll get a rule-based soil condition report and the
+      top-3 crop recommendations from the trained model.</p>
+    {% endif %}
+  </section>
+</main>
+<footer>AgriSense · scikit-learn + Flask · trained model:
+  see <code>models/metrics.json</code></footer>
+</body>
+</html>
