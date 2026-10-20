@@ -3,11 +3,12 @@
 Run from the repo root:  python -m app.app   (then open http://localhost:5000)
 """
 from flask import Flask, render_template, request
-
+from PIL import Image,UnidentifiedImageError
 from src.predict import recommend
 from src.preprocess import FEATURES
-
+from flask import jsonify
 app = Flask(__name__)
+app.config["MAX_CONTENT_LENGTH"]=5*1024*1024
 
 FIELD_META = {
     "N": ("Nitrogen (N)", "kg/ha", 78),
@@ -33,6 +34,21 @@ def index():
     return render_template("index.html", fields=FIELD_META, values=values,
                            result=result, error=error)
 
-
+@app.route("/predict-disease",methods=["POST"])
+def predict_disease():
+    if "image" not in request.files:
+        return jsonify({"error":"image is not found"}),400
+    file=request.files["image"]
+    if file.filename=='':
+            return jsonify({"error":"file is empty"}),400
+    try:
+        image=Image.open(file.stream)
+        if image.format not in ("JPEG","PNG"):
+            return jsonify({"error":"Unsupported Image Format"}),400
+        image.verify()
+    except(UnidentifiedImageError,OSError):
+        return jsonify({"error":"Image Invalid"}),400
+    
+    return jsonify({"message":"File found"}),200
 if __name__ == "__main__":
     app.run(debug=True)
