@@ -12,10 +12,11 @@ import pandas as pd
 
 from src.preprocess import FEATURES
 from src.soil_rules import soil_report
+from functools import lru_cache
 
 MODELS_DIR = Path("models")
 
-
+@lru_cache(maxsize=1)
 def load_artifacts():
     model = joblib.load(MODELS_DIR / "model.joblib")
     scaler = joblib.load(MODELS_DIR / "scaler.joblib")
