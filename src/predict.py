@@ -4,17 +4,15 @@ CLI:  python -m src.predict --N 78 --P 42 --K 40 --temperature 24 \
         --humidity 82 --ph 6.4 --rainfall 220 --soil_moisture 68
 """
 import argparse
-from pathlib import Path
+import sys
+from functools import lru_cache
 
 import joblib
 import numpy as np
 import pandas as pd
 
-from src.preprocess import FEATURES
+from src.preprocess import FEATURES, MODELS_DIR, validate_sample
 from src.soil_rules import soil_report
-from functools import lru_cache
-
-MODELS_DIR = Path("models")
 
 @lru_cache(maxsize=1)
 def load_artifacts():
@@ -24,7 +22,12 @@ def load_artifacts():
 
 
 def recommend(sample: dict, top_k: int = 3) -> dict:
-    """sample: dict with the 8 FEATURES. Returns soil report + top-k crops."""
+    """sample: dict with the 8 FEATURES. Returns soil report + top-k crops.
+
+    Raises ValueError (naming the field) for missing, non-finite or
+    out-of-range values.
+    """
+    sample = validate_sample(sample)
     model, scaler = load_artifacts()
     X = pd.DataFrame([[sample[f] for f in FEATURES]], columns=FEATURES)
     X_scaled = pd.DataFrame(scaler.transform(X), columns=FEATURES)
@@ -42,7 +45,10 @@ def main():
         parser.add_argument(f"--{f}", type=float, required=True)
     args = parser.parse_args()
 
-    result = recommend(vars(args))
+    try:
+        result = recommend(vars(args))
+    except ValueError as exc:
+        sys.exit(f"error: {exc}")
     print("Soil condition:", result["soil"]["overall"])
     for issue in result["soil"]["issues"]:
         print("  -", issue)

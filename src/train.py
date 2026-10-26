@@ -5,28 +5,31 @@ Outputs: models/model.joblib, models/scaler.joblib, models/metrics.json,
          reports/confusion_matrix.png, reports/feature_importance.png
 """
 import json
-from pathlib import Path
+import platform
 
 import joblib
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import sklearn
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
                              precision_score, recall_score)
-from sklearn.model_selection import cross_val_score
+from sklearn.base import clone
+from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
-from src.preprocess import FEATURES, load_dataset, split_and_scale
+from src.preprocess import FEATURES, MODELS_DIR, ROOT, load_dataset, split_and_scale
 
 MODELS = {
     "logistic_regression": LogisticRegression(max_iter=2000),
     "random_forest": RandomForestClassifier(n_estimators=200, min_samples_leaf=2, random_state=42),
     "gradient_boosting": GradientBoostingClassifier(random_state=42),
 }
-REPORTS = Path("reports")
-MODELS_DIR = Path("models")
+REPORTS = ROOT / "reports"
 
 
 def evaluate(model, X_test, y_test) -> dict:
@@ -71,26 +74,45 @@ def plot_importance(model):
     plt.close(fig)
 
 
+def cross_validate(model, X_train_raw, y_train) -> np.ndarray:
+    """5-fold CV with the scaler *inside* the pipeline, so each fold's scaler
+    is fit on that fold's training rows only (no leakage from validation rows)."""
+    folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    pipe = make_pipeline(StandardScaler(), clone(model))
+    return cross_val_score(pipe, X_train_raw, y_train, cv=folds, scoring="f1_macro")
+
+
 def main():
     df = load_dataset()
-    X_train, X_test, y_train, y_test = split_and_scale(df)
+    X_train, X_test, y_train, y_test, scaler = split_and_scale(df)
+    X_train_raw = scaler.inverse_transform(X_train)
 
     results, fitted = {}, {}
     for name, model in MODELS.items():
-        cv = cross_val_score(model, X_train, y_train, cv=5, scoring="accuracy")
+        cv = cross_validate(model, X_train_raw, y_train)
         model.fit(X_train, y_train)
-        results[name] = evaluate(model, X_test, y_test) | {"cv_accuracy_mean": round(cv.mean(), 4)}
+        results[name] = evaluate(model, X_test, y_test) | {
+            "cv_f1_macro_mean": round(cv.mean(), 4),
+            "cv_f1_macro_std": round(cv.std(), 4),
+        }
         fitted[name] = model
-        print(f"{name:22s} acc={results[name]['accuracy']:.4f}  f1={results[name]['f1_macro']:.4f}  cv={cv.mean():.4f}")
+        print(f"{name:22s} cv_f1={cv.mean():.4f}±{cv.std():.4f}  "
+              f"test_acc={results[name]['accuracy']:.4f}  test_f1={results[name]['f1_macro']:.4f}")
 
-    best_name = max(results, key=lambda n: results[n]["f1_macro"])
+    # Choose on cross-validation (training data only). The test set is used
+    # once, for reporting; choosing on it would make the reported score optimistic.
+    best_name = max(results, key=lambda n: results[n]["cv_f1_macro_mean"])
     best = fitted[best_name]
-    print(f"\nbest model: {best_name}")
+    print(f"\nbest model (by CV macro-F1): {best_name}")
 
     MODELS_DIR.mkdir(exist_ok=True)
     joblib.dump(best, MODELS_DIR / "model.joblib", compress=3)
-    metrics = {"best_model": best_name, "n_samples": len(df),
-               "n_classes": df["label"].nunique(), "results": results}
+    joblib.dump(scaler, MODELS_DIR / "scaler.joblib")
+    metrics = {"best_model": best_name, "selected_by": "cv_f1_macro_mean",
+               "n_samples": len(df), "n_classes": int(df["label"].nunique()),
+               "trained_with": {"python": platform.python_version(),
+                                "scikit_learn": sklearn.__version__},
+               "results": results}
     (MODELS_DIR / "metrics.json").write_text(json.dumps(metrics, indent=2))
 
     plot_confusion(best, X_test, y_test, sorted(df["label"].unique()))
