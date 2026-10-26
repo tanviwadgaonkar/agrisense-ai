@@ -1,28 +1,36 @@
 {
   "best_model": "random_forest",
+  "selected_by": "cv_f1_macro_mean",
   "n_samples": 2160,
   "n_classes": 12,
+  "trained_with": {
+    "python": "3.13.15",
+    "scikit_learn": "1.9.1"
+  },
   "results": {
     "logistic_regression": {
       "accuracy": 0.912,
       "precision_macro": 0.9133,
       "recall_macro": 0.9128,
       "f1_macro": 0.9124,
-      "cv_accuracy_mean": 0.9039
+      "cv_f1_macro_mean": 0.9036,
+      "cv_f1_macro_std": 0.0141
     },
     "random_forest": {
       "accuracy": 0.9514,
       "precision_macro": 0.9526,
       "recall_macro": 0.9516,
       "f1_macro": 0.9515,
-      "cv_accuracy_mean": 0.9381
+      "cv_f1_macro_mean": 0.9401,
+      "cv_f1_macro_std": 0.0095
     },
     "gradient_boosting": {
       "accuracy": 0.9398,
       "precision_macro": 0.9412,
       "recall_macro": 0.9401,
       "f1_macro": 0.94,
-      "cv_accuracy_mean": 0.9265
+      "cv_f1_macro_mean": 0.9245,
+      "cv_f1_macro_std": 0.0079
     }
   }
 }
