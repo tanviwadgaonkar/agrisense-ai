@@ -1,18 +1,22 @@
-"""Print a full classification report for the saved model.
+"""Print a full classification report for the saved model and scaler.
 
 Run:  python -m src.evaluate
+
+Uses the *saved* artifacts on the held-out split — it evaluates exactly what
+the app serves, and never refits or overwrites anything.
 """
-import joblib
 from sklearn.metrics import classification_report
 
-from src.preprocess import load_dataset, split_and_scale
+from src.predict import load_artifacts
+from src.preprocess import FEATURES, load_dataset, split
+import pandas as pd
 
 
 def main():
-    df = load_dataset()
-    _, X_test, _, y_test = split_and_scale(df)
-    model = joblib.load("models/model.joblib")
-    print(classification_report(y_test, model.predict(X_test)))
+    _, X_test, _, y_test = split(load_dataset())
+    model, scaler = load_artifacts()
+    X_test_s = pd.DataFrame(scaler.transform(X_test), columns=FEATURES)
+    print(classification_report(y_test, model.predict(X_test_s)))
 
 
 if __name__ == "__main__":
