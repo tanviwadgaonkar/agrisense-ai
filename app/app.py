@@ -25,16 +25,46 @@ FIELD_META = {
     "soil_moisture": ("Soil moisture", "%", 68),
 }
 
+import math
 
+VALID_RANGES = {
+    "N": (0, 300),
+    "P": (0, 200),
+    "K": (0, 300),
+    "temperature": (0, 50),
+    "humidity": (0, 100),
+    "ph": (3, 10),
+    "rainfall": (0, 500),
+    "soil_moisture": (0, 100),
+}
+
+import math
+
+def validate_sample(values):
+    for feature, (minimum, maximum) in VALID_RANGES.items():
+        value = values[feature]
+
+        if not math.isfinite(value):
+            raise ValueError(f"{feature} must be a finite number")
+
+        if not minimum <= value <= maximum:
+            raise ValueError(
+                f"{feature} must be between {minimum} and {maximum}"
+            )
 @app.route("/", methods=["GET", "POST"])
 def index():
     result, error, values = None, None, {f: FIELD_META[f][2] for f in FEATURES}
     if request.method == "POST":
         values = {f: request.form.get(f, "") for f in FEATURES}
         try:
+            values = {f: float(request.form[f]) for f in FEATURES}
+            validate_sample(values)
             result = recommend(values)
+
+        except KeyError:
+            error = "Please fill in all fields."
         except ValueError as exc:
-            error = f"Please check your input: {exc}."
+            error = str(exc)        
     return render_template("index.html", fields=FIELD_META, values=values,
                            result=result, error=error)
 
