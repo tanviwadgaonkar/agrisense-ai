@@ -8,7 +8,7 @@ import os
 from flask import Flask, jsonify, render_template, request
 from PIL import Image, UnidentifiedImageError
 
-from src.predict import recommend
+from src.predict import recommend,load_artifacts
 from src.preprocess import FEATURES,validate_sample
 
 app = Flask(__name__)
@@ -65,7 +65,13 @@ def api_recommend():
 @app.get("/health")
 def health():
     return jsonify({"status": "ok"})
-
+@app.get("/ready")
+def ready():
+    try:
+        load_artifacts()
+        return jsonify({"status":"ready"}),200
+    except FileNotFoundError:
+        return jsonify({"status":"not ready"}),503
 
 @app.post("/predict-disease")
 def predict_disease():
@@ -89,7 +95,10 @@ def predict_disease():
         "image": {"format": image.format, "width": image.width, "height": image.height},
     }), 501
 
-
+def test_ready_when_artifacts_available(client):
+    response = client.get("/ready")
+    assert response.status_code==200
+    assert response.get_json()['status']=='ready'
 @app.errorhandler(413)
 def too_large(_exc):
     return jsonify({"error": "file larger than 5 MB"}), 413
